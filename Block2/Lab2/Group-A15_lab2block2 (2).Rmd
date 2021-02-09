@@ -1,0 +1,355 @@
+---
+title: "lab2_block2"
+author: "Vinay,Tejashree,Omkar"
+date: "December 17, 2018"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+#Assignment 1
+
+##1
+
+```{r message=FALSE, warning=FALSE}
+
+library(readxl)
+influenza <- read_excel("influenza.xlsx")
+
+library(ggplot2)
+library(gridExtra)
+
+mortalityTime <- ggplot(influenza, aes(x=Time, y=Mortality)) + geom_line() #mortality v/s time
+influenzeTime <- ggplot(influenza, aes(x=Time, y=Influenza)) + geom_line() #influenze v/s time
+plot(arrangeGrob(grobs = list(mortalityTime,influenzeTime), nrow=2)) #to plot together
+
+```
+
+From the plots we can see that, Mortality and Influenza peaking during the same time of each year which is the 1st quarter (Jan to March) with Influenza peaking sometimes in December of the previous as well.
+
+##2
+
+```{r message=FALSE, warning=FALSE}
+
+library(mgcv)
+res <- gam(data=influenza,Mortality~Year+s(Week,k=length(unique(influenza$Week))))
+#print(res)
+#summary(res)
+#res$sp
+
+```
+
+Probabilistic model:
+
+Mortality ~ N((Year+S(Week)),\(\sigma^2\))
+
+##3
+
+```{r message=FALSE, warning=FALSE}
+
+influenza$predictMortality <- predict(res)
+ggplot() +
+   geom_line(data=influenza, aes(x=Time, y=Mortality), color="blue") +
+     geom_line(data=influenza, aes(x=Time, y=predictMortality), color="red")
+plot(res)
+#summary(res)
+
+```
+
+In the plot the blue curve indicates the actual data curve and the red curve indicates the prediction curve.  
+
+Quality of the fit- The prediction curve does not seem to cover a few of the actual data points as it can be seen in the plot. Hence the fit does not seem to be the best.
+
+Trend- There seems to be a decreasing overall trend year on year. The trend that is being followed every year i.e. month on month seems to be the same for every year from the plot.
+
+The mortality seems to be highest during the start of the year and then decrease during mid year and then again increase towards the end of the year.
+
+The spline component of week seems to be more significant than the linear function of year as it can seen.
+
+##4
+
+```{r message=FALSE, warning=FALSE}
+
+  res4.1 <- gam(data=influenza,Mortality~Year+s(Week,sp=0.001,k=length(unique(influenza$Week))))
+  res4_sum4.1 <- summary(res4.1)
+  res4.1$deviance
+  
+  
+  influenza$predictMortality <- predict(res4.1)
+  p1<- ggplot() +
+      geom_line(data=influenza, aes(x=Time, y=Mortality), color="blue") +
+          geom_line(data=influenza, aes(x=Time, y=predictMortality), color="red")
+   dof4.1 <- res4_sum4.1$edf
+   dof4.1
+   
+  res4.2 <- gam(data=influenza,Mortality~Year+s(Week,sp=0.1,k=length(unique(influenza$Week))))
+  res4_sum4.2 <- summary(res4.2)
+  res4.2$deviance
+  
+   dof4.2 <- res4_sum4.2$edf
+   dof4.2
+
+   res4.3 <- gam(data=influenza,Mortality~Year+s(Week,sp=1,k=length(unique(influenza$Week))))
+  res4_sum4.3 <- summary(res4.3)
+  res4.3$deviance
+  
+   dof4.3 <- res4_sum4.3$edf
+   dof4.3
+   
+   res4.4 <- gam(data=influenza,Mortality~Year+s(Week,sp=10,k=length(unique(influenza$Week))))
+  res4_sum4.4 <- summary(res4.4)
+  res4.4$deviance
+  
+  influenza$predictMortality <- predict(res4.4)
+   p2<-ggplot() +
+      geom_line(data=influenza, aes(x=Time, y=Mortality), color="blue") +
+          geom_line(data=influenza, aes(x=Time, y=predictMortality), color="red")
+   dof4.4 <- res4_sum4.4$edf
+   dof4.4
+   grid.arrange(p1,p2,ncol=1)
+   modeldev<- 
+      data.frame(penaltyfactor=c(0.001,0.1,1,10),
+                   Deviance=c(3938200,4555098,6593860,9274216),
+                   dof=c(dof4.1,dof4.2,dof4.3,dof4.4))
+   
+   modeldev<- 
+      data.frame(penaltyfactor=c(0.001,0.1,1,10),
+                   Deviance=c(res4.1$deviance,res4.2$deviance,res4.3$deviance,res4.4$deviance),
+                   dof=c(dof4.1,dof4.2,dof4.3,dof4.4))
+   
+p5 <- ggplot(data=modeldev, aes(x = penaltyfactor, y = Deviance)) +geom_line() +
+          ggtitle("Plot of Deviances of models vs. Penalty Factors")
+p5
+# Degree of freedom plot
+p6 <- ggplot(data=modeldev, aes(x = penaltyfactor, y = dof)) +geom_line() +
+          ggtitle("Plot of Degree of freedoms of models vs. Penalty Factors")
+p6
+```
+
+The variation in penalty factor leads to underfitting or overfitting of prediction curves or fit models. The deviance seem to decrease with the increase in penalty factor.
+
+The degrees of freedom seems to decrease with the increase in penalty factor.
+
+##5
+
+```{r message=FALSE, warning=FALSE}
+
+influenza$residuals <- res$residuals
+ggplot() +
+  geom_line(data=influenza, aes(x=Time, y=Influenza), color="blue") +
+    geom_line(data=influenza, aes(x=Time, y=residuals), color="red")
+
+```
+
+The temporal pattern in the residuals seem to be correlated to the outbreaks of influenza and it is evident in the plot. The peaks for both appear at almost the same points of time.
+
+##6
+
+```{r message=FALSE, warning=FALSE}
+
+res6 <- gam(data=influenza,Mortality~s(Influenza,k=length(unique(influenza$Influenza)))+
+              s(Year,k=length(unique(influenza$Year)))+
+              s(Week,k=length(unique(influenza$Week))))
+
+#summary(res6)
+
+influenza$predictMortality <- predict(res6)
+ggplot() +
+  geom_line(data=influenza, aes(x=Time, y=Mortality), color="blue") +
+  geom_line(data=influenza, aes(x=Time, y=predictMortality), color="red")
+
+```
+
+The fit model seems to be better than the previous fit models as the prediction curve follows the trend of actual curve very closely which is evident in the plot. Since the model fits better when the spline function of Influenza is considered to build the model in this part, it can be concluded that the mortality is influenced by the outbreaks of influenza. 
+
+#Assignment 2
+
+##2.1
+
+```{r message=FALSE, warning=FALSE}
+
+data <- as.data.frame(read.csv("data.csv", sep = ";"))
+
+# Dividing data into train and test data
+n <- dim(data)[1]
+set.seed(12345)
+id <- sample(1:n, floor(n*0.7))
+train <- data[id,]
+test <- data[-id,]
+
+library(pamr)
+rownames(data) <- 1:nrow(data)
+x <- t(train[,-4703])
+y <- train[[4703]]
+mydata <- list(x=x,y=as.factor(y),geneid=as.character(1:nrow(x)), genenames=rownames(x))
+
+# Buiding NSC model
+model <- pamr.train(mydata)
+modelCV <- pamr.cv(model,mydata)
+
+pamr.plotcv(modelCV)
+#print(modelCV)
+
+# Fitting model with threshold corresponding to minimum error
+modelFinal <- pamr.train(mydata, threshold = modelCV$threshold[which.min(modelCV$error)])
+
+# Centroid plot
+pamr.plotcen(model, mydata, threshold = modelCV$threshold[which.min(modelCV$error)])
+
+# Number of features selected by method
+a=pamr.listgenes(model, mydata, threshold=1.305933, genenames=T)
+numFea_nsc <- nrow(as.data.frame(a))
+
+# 10 most contributing features
+cat(paste(colnames(train)[as.numeric(a[1:10,1])], collapse='\n'))
+
+# Test error
+testX <- t(test[,-4703])
+predY <- pamr.predict(model, newx=testX, type="class", threshold=1.305933)
+conMat <- table(predY,test$Conference)
+mcr_nsr <- 1 - (sum(diag(conMat))/sum(conMat))
+mcr_nsr
+
+```
+
+Number of features selected by the method: 231
+
+The variables that contribute to the classification and the extent to which each variable contributes to the classification is shown through the plot. Line 0 corresponds to everything else and 1 corresponds to announcement of the conference. The features on the top contribute more for the classification and the ones in the bottom does not contribute at all.
+
+It is reasonable that they have strong effect on the discrimination between the conference mails and other mails.
+
+Test error: 0.1
+
+##2.2
+
+###a
+
+```{r message=FALSE, warning=FALSE}
+
+library(glmnet)
+set.seed(12345)
+Y <- as.factor(train$Conference)
+X <- as.matrix(train[,-4703])
+
+# Fitting elastic model
+elasticModel <- cv.glmnet(x=X,y=Y,family="binomial",alpha = 0.5)
+
+X_test <- as.matrix(test[,-4703])
+Y_test <- as.matrix(test[,4703])
+predY_elas <- predict(object = elasticModel,newx = X_test, s = elasticModel$lambda.min,
+                    type = "class", exact = TRUE)
+
+conMat_elas <- table(Y_test,predY_elas)
+mcr_elas <- 1 - (sum(diag(conMat_elas))/sum(conMat_elas))
+mcr_elas
+
+# Number of contributing features
+elas_coef <- coef(elasticModel, s = "lambda.min")
+numFea_elas <- length(elas_coef@i)
+
+```
+
+Test error: 0.1
+
+Number of features selected: 39
+
+
+###b
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE}
+
+library(kernlab)
+
+# Fitting SVM model
+svm <- ksvm(X, as.matrix(Y), kernel = "vanilladot", scaled = F)
+predY_svm <- predict(svm, X_test, type = "response")
+conMat_svm <- table(Y_test,predY_svm)
+mcr_svm <- 1 - (sum(diag(conMat_svm))/sum(conMat_svm))
+mcr_svm
+
+# Number of contributing features
+svm_coef <- coef(svm, s = "lambda.min")
+numFea_svm <- length(svm_coef[[1]])
+
+```
+
+Test error: 0.05
+
+Number of features selected: 43
+
+
+Comparision table:
+
+```{r message=FALSE, warning=FALSE}
+
+df_misclas <- 
+  c(mcr_nsr,mcr_elas,mcr_svm)
+numFea <- c(numFea_nsc,numFea_elas,numFea_svm)
+tab <- rbind(df_misclas,numFea)
+colnames(tab) <- c("NSC","Elastic","SVM")
+rownames(tab) <- c("error rate", "number of contributing features")
+tab
+
+```
+
+We would use SVM for prediction as it has the lowest error rate or highest accuracy.
+
+
+##2.3
+
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+
+set.seed(12345)
+a <- c()
+x <- data[,-4703]
+for (i in 1:(length(data)-1)){
+  x <- data[,i]
+res <- t.test(x~Conference, data=data, alternative="two.sided")
+a[i] <- res$p.value
+}
+
+p_adj <- p.adjust(a, method = "BH", n=length(a))
+p_adj_df <- data.frame("feature" = colnames(data[,-4703]), "pvals" = p_adj)
+p_adj_df <- p_adj_df[which(p_adj_df[,2] <= 0.05), ]
+num_features <- nrow(p_adj_df)
+p_adj_df[c(1:39),1]
+
+
+# pvalues <- data.frame(pvalue = a, variable = 1:(length(data)-1))
+# pvalues <- pvalues[order(pvalues$pvalue),]
+# 
+# alpha <- 0.05
+# b <- c()
+# c <- 1
+# for(j in 1:length(a)){
+#  if( pvalues$pvalue[j]< alpha*(j/nrow(pvalues)) ){
+#    b[c] <- j
+#    c <- c+1
+#  }
+# }
+# a1 = pvalues$pvalue[max(b)]
+# a1
+# for(j in 1:nrow(pvalues)){
+#   if(pvalues$pvalue[j]<= a1){
+#     pvalues$status[j]<-FALSE
+#   }
+#   else{
+#     pvalues$status[j]<-TRUE
+#   }
+# }
+# 
+# significantp <- filter(pvalues,pvalue<=0.05)
+# significantp <- cbind(significantp, Variable_name=colnames(data[significantp$variable]))
+# significantp
+# 
+# finalbh <- filter(pvalues, status==FALSE)
+# finalbh <- cbind(finalbh, Variable_name=colnames(data[finalbh$variable]))
+# finalbh
+
+```
+
+39 features correspond to rejecting the null hypothesis, according to the BH rejection threshold. These contain variable names such as 'notification','workshop','conference','candidates','published','topics' to name a few of the 39 features. These reject that the null hypothesis that states that these features have no effect in the classification of into conference and non-conference.
+
+From the first table , it is observed that 281 features have significant p values. Features such as 'committee',
+'conference','process','optimization','arrangements' make sense in the usage.
