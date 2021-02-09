@@ -1,0 +1,464 @@
+---
+title: "Untitled"
+author: "Tejashree R Mastamardi"
+date: "12/10/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Assignment 1: LDA and Logistic Regression
+
+Question 1: Make a scatterplot of Sepal Width versus Sepal Length where observations are colored by Species. Do you think that this data is easy to classify by linear discriminant analysis? Motivate your answer.
+
+```{r message=FALSE, warning=FALSE}
+data("iris")
+attach(iris)
+
+head(iris)
+
+plot(x=Sepal.Length, y=Sepal.Width, main = "Scatterplot", xlab = "Sepal Length", ylab = "Sepal width", pch = 19, col = c("green","blue","red")[Species])
+legend("topright",legend = c("Setosa", "Versicolor", "Virginica"),
+       col=c("green", "blue", "red"), pch = 16, bty="n", pt.cex = 2,text.col = "black", cex=0.8)
+```
+ The data points of Versicolor and Virginica overlap, thus it will be difficult for LDA to differentiate between these classes.
+
+Question 2: Use basic R functions only to implement Linear Discriminant Analysis between the three species based on variables Sepal Length and Sepal Width:
+(A) Compute mean, covariance matrices (use cov() ) and prior probabilities per class and report them
+```{r message=FALSE, warning=FALSE}
+library(MASS)
+library(dplyr)
+
+#mean per class
+aggregate(cbind(Sepal.Length, Sepal.Width) ~ Species, data = iris, mean)
+
+#covariance matrices per class
+lapply(split(iris[,c(1,2)],iris$Species),cov)
+
+#prior probabilities per class
+Model <- lda(Species~., data = iris)
+Model$prior
+```
+
+
+```{r message=FALSE, warning=FALSE}
+species_split <- split(iris[,1:2], iris$Species)
+species_split
+
+x_setosa <- species_split$setosa
+x_versicolor <- species_split$versicolor 
+x_virginica <- species_split$virginica
+
+mu_setosa <- colMeans(x_setosa)
+mu_setosa
+mu_versicolor <- colMeans(x_versicolor)
+mu_versicolor
+mu_virginica <- colMeans(x_virginica)
+mu_virginica
+
+m_setosa <- sum(x_setosa[,1],x_setosa[,2])/nrow(x_setosa)
+
+
+
+#total number of observations
+n_total <- nrow(iris)
+
+#number of observations in each class
+n_setosa <- nrow(x_setosa)
+n_versicolor <- nrow(x_versicolor)
+n_virginica <- nrow(x_virginica)
+
+#Covariance matrix per class
+cov_setosa <- cov(x_setosa)
+cov_setosa
+cov_versicolor <- cov(x_versicolor)
+cov_versicolor
+cov_virginica <- cov(x_virginica)
+cov_virginica
+
+#Prior probabilities
+pp_setosa <- n_setosa/n_total
+pp_setosa
+pp_versicolor <- n_versicolor/n_total
+pp_versicolor
+pp_virginica<- n_virginica/n_total
+pp_virginica
+```
+
+
+(B) Compute overall (pooled) covariance matrix and report it
+```{r message=FALSE, warning=FALSE}
+pooled_covariance <- (cov_setosa + cov_versicolor + cov_virginica)/3
+pooled_covariance
+
+```
+ 
+
+(c) Report the probabilistic model for the LDA
+$$ x|y = C_i,\mu_i,\sum \sim N(\mu_i,\sum)$$
+$$ y|\pi = Multinomial(\pi_1,...\pi_k)$$ 
+
+
+(D) Compute discriminant functions for each class
+```{r message=FALSE, warning=FALSE}
+disc_function <- function(Specie) {
+  combined_mean = as.matrix(mu_setosa, mu_versicolor, mu_virginica)
+  inv_pool_cov <- solve(pooled_covariance)
+  
+  w_0 = as.numeric(-1/2 %*% t(combined_mean) %*% inv_pool_cov %*% combined_mean) + log(50/150)
+  w = inv_pool_cov %*% combined_mean
+
+  assign(paste(i, "w_0", sep="_"), w_0, envir = .GlobalEnv)
+  assign(paste(i, "w", sep="_"), w, envir = .GlobalEnv)
+}
+
+for (i in Species) {
+  disc_function(i)
+}
+
+
+w0_setosa <- as.numeric(-1/2%*%t(mu_setosa)%*%inv_pool_cov%*%mu_setosa) + log(50/150)
+w_setosa <- inv_pool_cov %*% mu_setosa
+
+w0_versicolor <- as.numeric(-1/2%*%t(mu_versicolor)%*%inv_pool_cov%*%mu_versicolor) + log(50/150)
+w_versicolor <- inv_pool_cov %*% mu_versicolor
+
+w0_virginica <- as.numeric(-1/2%*%t(mu_virginica)%*%inv_pool_cov %*%mu_versicolor) + log(50/150)
+w_virginica <- inv_pool_cov %*% mu_virginica
+```
+
+(E) Compute equations of decision boundaries between classes and report them
+```{r message=FALSE, warning=FALSE}
+#Weighted Average - (mu1 + mu2)
+
+
+```
+
+
+Assignment 2: Decision trees and Naive bayes
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+bank_full <- read.csv2("bank-full.csv",stringsAsFactors = T)
+
+#remove duration
+bank <- bank_full[,-12]
+```
+
+Question 1: 
+```{r message=FALSE, warning=FALSE}
+#divide into train, valid and test
+n = dim(bank)[1]
+set.seed(12345)
+id = sample(1:n, floor(n*0.4))
+train = bank[id,]
+
+id1 = setdiff(1:n, id)
+set.seed(12345)
+id2 = sample(id1, floor(n*0.3))
+valid = bank[id2,]
+
+id3 = setdiff(id1,id2)
+test = bank[id3,]
+```
+
+Question 2.1: Decision tree with default settings
+```{r message=FALSE, warning=FALSE}
+library(tree)
+
+n=dim(train)[1]
+fit = tree(y~.,data = train)
+#summary(fit)
+
+plot(fit, type = c("uniform"))
+text(fit, pretty=0)
+
+pred_train <- predict(fit, newdata = train[,-16], type="class")
+
+tabtrain = table(train[,16],pred_train)
+tabtrain
+
+1-sum(diag(tabtrain))/sum(tabtrain)
+
+pred_valid <- predict(fit, newdata = valid[,-16], type="class")
+
+tabvalid = table(valid[,16],pred_valid)
+tabvalid
+
+1-sum(diag(tabvalid))/sum(tabvalid)
+
+```
+
+Question 2.2 Decision tree with smallest allowed node size equal to 7000
+```{r message=FALSE, warning=FALSE}
+set.seed(12345)
+
+control_model <- tree.control(nobs = nrow(train)[1], minsize = 7000)
+fit1 <- tree(y~., data=train, control = control_model)
+#summary(fit1)
+
+plot(fit1, type = c("uniform"))
+text(fit1, pretty=0)
+
+pred_train1 <- predict(fit1, newdata = train[,-16], type="class")
+
+tabtrain1 = table(train[,16],pred_train1)
+tabtrain1
+
+1-sum(diag(tabtrain1))/sum(tabtrain1)
+
+pred_valid1 <- predict(fit1, newdata = valid[,-16], type="class")
+
+tabvalid1 = table(valid[,16],pred_valid1)
+tabvalid1
+
+1-sum(diag(tabvalid1))/sum(tabvalid1)
+```
+
+Question 3: Decision trees minimum deviance to 0.0005
+```{r message=FALSE, warning=FALSE}
+set.seed(12345)
+
+control_model1 <- tree.control(nobs = nrow(train)[1], mindev = 0.0005)
+fit2 <- tree(y~., data = train, control = control_model1)
+#summary(fit2)
+plot(fit2, type = c("uniform"))
+#text(fit2, pretty=0)
+
+pred_train2 <- predict(fit2, newdata = train[,-16], type="class")
+
+tabtrain2 = table(train[,16],pred_train2)
+tabtrain2
+
+1-sum(diag(tabtrain2))/sum(tabtrain2)
+
+misclass_train3 = mean(train[, dim(valid)[2]] != pred_train2)
+misclass_train3
+
+pred_valid2 <- predict(fit2, newdata = valid[,-16], type="class")
+
+tabvalid2 = table(valid[,16],pred_valid2)
+tabvalid2
+
+1-sum(diag(tabvalid2))/sum(tabvalid2)
+
+misclass_valid3 = mean(valid[, dim(test)[2]] != pred_valid2)
+misclass_valid3
+```
+
+Question 3:  
+```{r message=FALSE, warning=FALSE}
+#Use training and validation sets to choose the optimal tree depth in the model 2c: study the trees upto 50 leaves.
+trainScore <- rep(0,50)
+validScore <- rep(0,50)
+
+for (i in 2:50) {
+  prunedTree = prune.tree(fit2,best = i)
+  pred = predict(prunedTree, newdata=valid, type="tree")
+  trainScore[i] = deviance(prunedTree)/floor(n*0.4)
+  validScore[i] = deviance(pred)/floor(n*0.3)
+}
+#graph of dependeence of deviances from training and validation data on number of leaves 
+plot(2:50, trainScore[2:50], type = "b", col = "red", xlab = "Number Of Leaves", ylab = "Deviance")
+points(2:50, validScore[2:50], type="b", col = "blue")
+
+#report optimal amount of leaves
+leaves = which.min(validScore[2:50]) + 1
+
+finalTree = prune.tree(fit2, best = leaves)
+Yfit = predict(finalTree, newdata = valid, type="class")
+table(valid$y, Yfit)
+
+#confusion matrix and misclassification rate for test data
+Yfit = predict(finalTree, newdata = test, type="class")
+tab <- table(test$y, Yfit)
+tab
+msr <- (1 - (sum(diag(tab))/sum(tab)))*100
+msr
+```
+
+Question 4: Perform a decision tree classification of the test data with the loss matrix and report the confusion matrix for test data. Compare the results with step 3 and discuss how the rates has changed and why.
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+Predfit = predict(finalTree, newdata = test)
+
+# loss matrix
+treetest1 = (Predfit[, 2] / Predfit[, 1]) > 5 # compare with loss matrix
+
+# confusion matrix for test
+tabtest = table(test$y,treetest1)
+tabtest
+
+1-sum(diag(tabtest))/sum(tabtest)
+
+#second method
+Loss_matrix <- matrix(c(0,1,5,0), ncol=2, byrow = FALSE)
+print(Loss_matrix)
+
+LossTree <- rpart(y~., data = train, method = "class",
+                  parms = list(loss=Loss_matrix))
+plot(LossTree)
+LossPred <- predict(LossTree, newdata = test, type = "class")
+
+Losstable <- table(test$y, LossPred)
+
+Lossmsr <- (1 - (sum(diag(Losstable))/sum(Losstable)))*100
+Lossmsr
+
+```
+
+Question 5: 
+```{r message=FALSE, warning=FALSE}
+library(e1071)
+finalTree = prune.tree(fit2, best = leaves)
+Predfit = predict(finalTree, newdata = test)
+
+NaiveModel <- naiveBayes(y~., data = train)
+PredNaive <- predict(NaiveModel, newdata = test, type = "raw")
+
+df = data.frame(pi=double(), tree_tpr=double(), 
+                tree_fpr=double(), naive_tpr=double(), 
+                naive_fpr=double())
+for (pi in seq(0.05, 0.95, by=0.05)) {
+  pred_tree = as.data.frame(Predfit)
+  pred_naive = as.data.frame(PredNaive)
+  pi_tree = ifelse(pred_tree$yes > pi, "no", "yes")
+  pi_naive = ifelse(pred_naive$yes > pi, "no", "yes")
+  tree_table = table(test$y, factor(pi_tree, levels=c("no", "yes")))
+  naive_table = table(test$y, factor(pi_naive, levels=c("no", "yes")))
+  df = rbind(df, c(pi,
+                   tree_table[4]/(tree_table[4]+tree_table[2]),
+                   tree_table[3]/(tree_table[3]+tree_table[1]),
+                   naive_table[4]/(naive_table[4]+naive_table[2]),
+                   naive_table[3]/(naive_table[3]+naive_table[1])
+))
+}
+
+colnames(df) = c("pi", "tpr_tree", "fpr_tree", "tpr_naive", "fpr_naive")
+
+plot(-1, -1, xlim=c(0, 1), ylim=c(0, 1), xlab="FPR", ylab="TPR",
+main="ROC curve for Naive Bayes vs Tree model")
+lines(df$tpr_tree, df$fpr_tree, lwd=1, col="blue")
+lines(df$tpr_naive, df$fpr_naive, lwd=1, col="red")
+legend("bottomright", c("Optimal Tree", "Naive Bayes"), col=c("blue", "red"), lwd=10)
+
+```
+
+Assignment 3: Principal components for crime level analysis
+
+Question 1: Scale all variables except of ViolentCrimesPerPop and implement PCA by using function eigen(). Report how many features are needed to obtain at least 95% of variance in the data. What is the proportion of variation explained by each of the first two principal components?
+```{r message=FALSE, warning=FALSE}
+communities <- read.csv("communities.csv", header = TRUE)
+View(communities)
+
+#communities[1:100] <- lapply(communities[1:100], function(x) c(scale(x)))
+
+comm1 <- scale(communities[1:100])
+comm2 <- communities$ViolentCrimesPerPop
+
+covariance <- cov(comm1)
+ev <- eigen(covariance)
+
+lambda <- ev$values
+print(lambda/sum(lambda)*100)
+
+#proportion of variation
+sprintf("%2.3f",cumsum(lambda)/sum(lambda)*100)
+```
+
+ 35 features are needed to obtain atleast 95% of variance in the data. 42% of variation is explained by each of the first two principal components.
+ 
+Question 2: Repeat PCA analysis by using princomp() function and make the score plot of the first principle component. Do many features have a notable contribution to this component? Report which 5 features contribute mostly (by the absolute value) to the first principle component. Comment whether these features have anything in common and whether they may have a logical relationship to the crime level. Also provide a plot of the PC scores in the coordinates (PC1, PC2) in which the color of the points is given by ViolentCrimesPerPop. Analyse this plot (hint: use ggplot2 package ).
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+
+a <- princomp(comm1)
+
+#score plot of the first principal component
+plot(a$loadings[,1])
+
+#top 5 features contributing to PC1
+features <- sort(abs(a$loadings[,1]), decreasing = TRUE)
+
+data <- data.frame( PC1 = a$scores[,1], 
+                    PC2 = a$scores[,2],
+                    Crimes = comm2)
+data
+
+#Plot of PC scores in the coordinates(PC1, PC2) in which color of the points is given by ViolentCrimesPerPop
+library(ggfortify)
+p1 <- ggplot(comm1, aes(x=data[,1], y=data[,2]), col = Crimes) + geom_point()
+p1
+```
+
+Question 3: Assume a second order polynomial regression model in which ViolentCrimesPerPop is target and PC1 is the feature. Compute this model using lm() function (hint: use poly() function within the formula), make a scatterplot of the target versus the feature and present also the predicted values in this plot. Can the target be well explained by this feature? Does the model seem to capture the connection between the target and the feature?
+
+```{r message=FALSE, warning=FALSE}
+#fit second order poynomial to PC1 and crimes
+data
+p2 <- lm(Crimes~poly(PC1,2), data = data)
+p2
+data[,"Fitted"] <- predict(p2, newdata = data)
+
+#plot of target vs feature and predicted values
+P1 <- ggplot(data, aes(PC1)) + 
+      geom_point(aes(y=Crimes), color = "black") + 
+      geom_point(aes(y=Fitted), color = "red")
+P1
+```
+
+
+Question 4: Use parametric bootstrap to estimate the confidence and prediction bands from the model from step 3 and add these bands into the plot from step 3. What can be concluded by looking at a) confidence intervals b) prediction intervals?
+
+```{r message=FALSE, warning=FALSE}
+mle <- p2
+#For Confidence bands
+fun1_conf <- function(data){
+  p2 <- lm(Crimes~poly(PC1,2), data = data)
+  pred <- predict(p2, newdata = data)
+  return(pred)
+}
+
+#For Prediction bands
+fun2_pred <- function(data){
+  p2 <- lm(Crimes~poly(PC1,2), data = data)
+  fitted_value <- predict(p2, newdata = data)
+  return(rnorm(length(data$PC1), fitted_value, sd(mle$residuals)))
+}
+
+rng <- function(data, model){
+  sample <- data.frame(Crimes = data$Crimes, PC1 = data$PC1 )
+  fitted_value = predict(model, sample)
+  sample$Crimes = rnorm(length(data$PC1), fitted_value, sd(mle$residuals))
+  return(sample)
+}
+
+set.seed(12345)
+
+library(boot)
+confidence <- boot(data, statistic = fun1_conf, R = 100, mle = mle, ran.gen = rng, 
+                   sim = "parametric")
+
+conf_bands <- envelope(confidence)
+
+prediction <- boot(data, statistic = fun2_pred, R = 100, mle = mle, ran.gen = rng, 
+                   sim = "parametric")
+
+pred_bands <- envelope(prediction)
+
+plot_data <- data.frame(Crimes = data$Crimes, PC1 = data$PC1, data$Fitted, 
+                        upper_c = conf_bands$point[1,], lower_c = conf_bands$point[2,], 
+                        upper_p = pred_bands$point[1,], lower_p = pred_bands$point[2,])
+
+p3 <- ggplot(plot_data, aes(Crimes, PC1, upper_c, lower_c, upper_p, lower_p)) + 
+      geom_line(aes(PC1, data.Fitted))+ geom_point(aes(PC1, Crimes), col = "black") +                     geom_line(aes(PC1, upper_c), col = "red") + geom_line(aes(PC1, lower_c), col = "red")
+
+p3
+
+p4 <- ggplot(plot_data, aes(Crimes, PC1, fitted_value, upper_c, lower_c, upper_p, lower_p)) +             geom_line(aes(PC1, data.Fitted))+ geom_point(aes(PC1, Crimes), col = "black") +                     geom_line(aes(PC1, upper_p), col = "green") + geom_line(aes(PC1, lower_p), col = "green") + 
+      geom_line(aes(PC1, upper_c), col = "red") + geom_line(aes(PC1, lower_c), col = "red")
+
+p4
+```
