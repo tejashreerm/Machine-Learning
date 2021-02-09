@@ -1,0 +1,112 @@
+---
+title: "NewLab3"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Question 1: Kernel Methods
+```{r message=FALSE, warning=FALSE}
+set.seed(1234567890)
+library(geosphere)
+stations <- read.csv("stations.csv")
+temps <- read.csv("temps50k.csv")
+st <- merge(stations,temps,by="station_number")
+# kernel definitions
+h_distance <- 100000 # in meters
+h_date <- 4 # in days
+h_time <- 4 # in hours
+# The point to predict
+a <- 58.4274
+b <- 16.456
+# The date to predict
+date <- "2014-08-02"
+# The time to predict
+times <- c("04:00:00", "06:00:00", "08:00:00", "10:00:00", "12:00:00", "14:00:00",
+"16:00:00", "18:00:00", "20:00:00", "22:00:00", "24:00:00")
+temp <- vector(length=length(times))
+temp1 <- vector(length=length(times))
+# Distance kernel
+Gauss_Dist <- function(gauss_loc,int_loc)
+{
+diff1 <- distHaversine(gauss_loc,int_loc)
+return (exp(-(diff1 / h_distance)^2))
+}
+
+# Date kernel
+Gauss_Date <- function(gauss_date, int_date)
+  {
+   diff2 <- as.numeric(difftime(int_date,gauss_date,unit = "days"))
+   return (exp(-(diff2 / h_date)^2))
+  }
+  
+# Time kernel
+Gauss_Hour <- function(gauss_time, int_time)
+  {
+   diff3 <- as.numeric(difftime(int_time,gauss_time,unit = "hours"))
+   return (exp(-(diff3 / h_time)^2))
+  }
+
+Distance <- Gauss_Dist(st[,c("longitude", "latitude")], c(b,a))
+Date <- Gauss_Date(st$date,date)
+
+station_time <- data.frame(date_time=as.POSIXct(paste(Sys.Date(), st$time),"%Y-%m-%d %H:%M:%S"))
+
+times <- strptime(paste(Sys.Date(),times),"%Y-%m-%d %H:%M:%S")
+
+for(i in 1:length(times)){
+  Hour <- Gauss_Hour(station_time$date_time,times[i])
+  # Adding all kernels
+  kernels_summed <- Distance+Date+Hour
+  temp[i] <- sum(kernels_summed*st$air_temperature)/sum(kernels_summed)
+  # Multiplying all kernels
+  kernels_multiplied <- Distance*Date*Hour
+  temp1[i] <- sum(kernels_multiplied*st$air_temperature)/sum(kernels_multiplied)
+}
+
+plot(times, temp, type="o", main="Predicted Temperature by adding kernels",
+xlab="Time", ylab="temp")
+
+plot(times, temp1, type="o", main="Predicted Temperature by multiplying kernels",
+xlab="Time", ylab="temp1")
+
+```
+
+Question 2: model selection
+```{r message=FALSE, warning=FALSE}
+library(kernlab)
+data(spam)
+my_data <- spam
+n=dim(my_data)[1]
+set.seed(12345)
+id=sample(1:n, floor(n*0.5))
+train <- my_data[id,]
+id1=setdiff(1:n,id)
+set.seed(12345)
+id2=sample(id1,floor(n*0.25))
+test=my_data[id2,]
+id3=setdiff(id1, id2)
+valid=my_data[id3,]
+
+error <- c()
+value <- c(0.5, 1, 5)
+m <- length(value)
+for (i in 1:m) {
+  model <- ksvm(type~., data = train, kernel = "rbfdot", kpar = list(sigma=0.05), C= value[i])
+  predY <- predict(model, newdata = valid)
+  conf_matrix <- table(predY, valid$type)
+  error[i] <- 1-sum(diag(conf_matrix))/sum(conf_matrix)
+}
+(error)*100
+
+#Estimate generalization error
+model2 <- ksvm(type~., data = train, kernel = "rbfdot", kpar = list(sigma=0.05), C = 1)
+predY2 <- predict(model2, newdata = test)
+conf_matrix2 <- table(predY2, test$type)
+error2 <- 1-sum(diag(conf_matrix2))/sum(conf_matrix2)
+(error2)*100
+```
+
+Question 3: 
